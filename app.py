@@ -5,6 +5,15 @@ import os
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_demo'
 
+import init_db as db_init
+import make_admin
+
+if not os.path.exists('database.db'):
+    print("Database not found. Initializing new database...")
+    db_init.init_db()
+    make_admin.create_admin()
+    print("Database initialized and admin user created.")
+
 def get_db_connection():
     conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
