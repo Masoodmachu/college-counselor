@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container fade-in">
+        <header class="dashboard-header">
+            <div>
+                <h1 class="gradient-text">Student Portal</h1>
+                <p>Welcome, {{ username }}</p>
+            </div>
+            <a href="/logout" class="btn" style="background: rgba(255,255,255,0.1); color: white; text-decoration: none;">Logout</a>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Submit new issue -->
+            <div class="glass-card">
+                <h3>Report an Issue / Ask a Question</h3>
+                <form id="issueForm">
+                    <div class="form-group">
+                        <label for="title">Subject</label>
+                        <input type="text" id="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Detailed Description</label>
+                        <textarea id="description" rows="3" required placeholder="What was your main concern or the most stressful part of this situation for you?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="timeline">Timeline of Events</label>
+                        <textarea id="timeline" rows="2" placeholder="What happened leading up to this, and who else might have seen/heard what happened?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="impact_scale">Impact Scale (1-10)</label>
+                        <input type="number" id="impact_scale" min="1" max="10" placeholder="How much is this affecting your daily life and studies?">
+                    </div>
+                    <div class="form-group">
+                        <label for="desired_support">Desired Support</label>
+                        <textarea id="desired_support" rows="2" placeholder="What kind of support or outcome are you hoping to get by sharing this today?"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit Securely</button>
+                </form>
+            </div>
+
+            <!-- History -->
+            <div class="glass-card">
+                <h3>Your History</h3>
+                <div id="historyList" style="margin-top: 1rem;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load history
+        async function loadHistory() {
+            const res = await fetch('/api/issues');
+            const issues = await res.json();
+            const list = document.getElementById('historyList');
+            list.innerHTML = '';
+            
+            if(issues.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-muted)">No issues reported yet.</p>';
+                return;
+            }
+
+            issues.forEach(issue => {
+                const item = document.createElement('div');
+                item.className = 'issue-item';
+                let html = `
+                    <div style="display: flex; justify-content: space-between;">
+                        <h4 style="margin-bottom: 0.5rem">${issue.title}</h4>
+                        <span class="issue-badge">${issue.status}</span>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">${issue.description}</p>
+                    <span class="issue-date">${new Date(issue.timestamp).toLocaleString()}</span>
+                `;
+                
+                if (issue.replies && issue.replies.length > 0) {
+                    html += `<div style="margin-top: 1rem; padding-left: 1rem; border-left: 2px solid var(--success);">
+                                <h5 style="color: var(--success); margin-bottom: 0.25rem;">Counselor Replies:</h5>`;
+                    issue.replies.forEach(reply => {
+                        html += `
+                            <p style="font-size: 0.85rem; margin-bottom: 0.25rem;">${reply.note_content}</p>
+                            <span class="issue-date" style="display: block; margin-bottom: 0.5rem;">${new Date(reply.timestamp).toLocaleString()}</span>
+                        `;
+                    });
+                    html += `</div>`;
+                }
+                
+                item.innerHTML = html;
+                list.appendChild(item);
+            });
+        }
+
+        // Submit issue
+        document.getElementById('issueForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const timeline = document.getElementById('timeline').value;
+            const impact_scale = document.getElementById('impact_scale').value;
+            const desired_support = document.getElementById('desired_support').value;
+
+            const res = await fetch('/api/issues', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, description, timeline, impact_scale, desired_support })
+            });
+
+            if (res.ok) {
+                document.getElementById('issueForm').reset();
+                loadHistory();
+            }
+        });
+
+        loadHistory();
+    </script>
+</body>
+</html>

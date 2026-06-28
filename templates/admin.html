@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container fade-in">
+        <header class="dashboard-header">
+            <div>
+                <h1 class="gradient-text">Admin Dashboard</h1>
+                <p>Manage Counselor Accounts</p>
+            </div>
+            <a href="/logout" class="btn" style="background: rgba(255,255,255,0.1); color: white; text-decoration: none;">Logout</a>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Create Counselor -->
+            <div class="glass-card">
+                <h3>Add New Counselor</h3>
+                <form id="createCounselorForm" style="margin-top: 1rem;">
+                    <div class="form-group">
+                        <label for="newUsername">Username</label>
+                        <input type="text" id="newUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">Password</label>
+                        <input type="password" id="newPassword" required>
+                    </div>
+                    <div id="statusMsg" style="margin-bottom: 1rem; display: none; font-weight: 500;"></div>
+                    <button type="submit" class="btn btn-primary">Create Account</button>
+                </form>
+            </div>
+
+            <!-- List Counselors -->
+            <div class="glass-card">
+                <h3>Active Counselors</h3>
+                <div id="counselorList" style="margin-top: 1rem;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="glass-card" id="activityPanel" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 id="activityTitle">Counselor Activity</h3>
+                    <button class="btn" style="background: rgba(255,255,255,0.1); padding: 0.25rem 0.75rem;" onclick="document.getElementById('activityPanel').style.display='none'">Close</button>
+                </div>
+                <div id="activityList">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadCounselors() {
+            const res = await fetch('/api/admin/counselors');
+            const counselors = await res.json();
+            const list = document.getElementById('counselorList');
+            list.innerHTML = '';
+
+            if (counselors.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-muted);">No counselors found.</p>';
+                return;
+            }
+
+            counselors.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'issue-item';
+                item.style.display = 'flex';
+                item.style.justifyContent = 'space-between';
+                item.style.alignItems = 'center';
+                
+                item.innerHTML = `
+                    <div>
+                        <h4 style="margin-bottom: 0.25rem">${c.username}</h4>
+                        <span class="issue-badge" style="background: rgba(59, 130, 246, 0.2); color: var(--primary);">Counselor</span>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" style="padding: 0.5rem 1rem; margin-right: 0.5rem;" onclick="viewActivity(${c.id})">View Activity</button>
+                        <button class="btn" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 0.5rem 1rem; border: 1px solid rgba(239, 68, 68, 0.4);" onclick="deleteCounselor(${c.id})">Revoke Access</button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function deleteCounselor(id) {
+            if (!confirm('Are you sure you want to revoke access for this counselor?')) return;
+            
+            const res = await fetch(`/api/admin/counselors/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                loadCounselors();
+            }
+        }
+
+        async function viewActivity(id) {
+            const res = await fetch(`/api/admin/counselors/${id}/activity`);
+            if (!res.ok) return;
+            
+            const data = await res.json();
+            document.getElementById('activityPanel').style.display = 'block';
+            document.getElementById('activityTitle').textContent = `Activity: ${data.counselor_username}`;
+            
+            const list = document.getElementById('activityList');
+            list.innerHTML = '';
+            
+            if (data.activities.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-muted); font-size: 0.875rem;">No activity found.</p>';
+                return;
+            }
+            
+            data.activities.forEach(act => {
+                const isPrivate = act.is_private === 1;
+                const badge = isPrivate ? '<span style="color: #f59e0b; font-size: 0.75rem;">(Private Note)</span>' : '<span style="color: var(--success); font-size: 0.75rem;">(Public Reply)</span>';
+                const style = isPrivate ? 'border-left: 2px solid #f59e0b; background: rgba(245, 158, 11, 0.1);' : 'border-left: 2px solid var(--success); background: rgba(16, 185, 129, 0.1);';
+                
+                list.innerHTML += `
+                    <div style="padding: 0.75rem; margin-bottom: 0.75rem; ${style}">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <strong style="font-size: 0.85rem;">Ticket: ${act.tracking_code} - ${act.title}</strong>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${new Date(act.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">${badge}</div>
+                        <p style="font-size: 0.9rem; margin: 0; color: #ddd;">"${act.note_content}"</p>
+                    </div>
+                `;
+            });
+            
+            // Scroll to it
+            document.getElementById('activityPanel').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        document.getElementById('createCounselorForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            const statusMsg = document.getElementById('statusMsg');
+
+            const res = await fetch('/api/admin/counselors', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+
+            statusMsg.style.display = 'block';
+            if (data.success) {
+                statusMsg.style.color = 'var(--success)';
+                statusMsg.textContent = 'Account created successfully!';
+                document.getElementById('createCounselorForm').reset();
+                loadCounselors();
+            } else {
+                statusMsg.style.color = '#ef4444';
+                statusMsg.textContent = 'Username already exists.';
+            }
+        });
+
+        loadCounselors();
+    </script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Portal | Register Users</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="glass-card auth-card fade-in">
+            <h2 class="gradient-text">Register New Account</h2>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">Create a new student or counselor profile.</p>
+            
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" required placeholder="Enter new username">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required placeholder="Enter new password">
+                </div>
+                <div class="form-group">
+                    <label for="role">Account Role</label>
+                    <select id="role" required>
+                        <option value="student">Student</option>
+                        <option value="counselor">Counselor</option>
+                    </select>
+                </div>
+                <div id="statusMsg" style="margin-bottom: 1rem; display: none; font-weight: 500;"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Create Account</button>
+            </form>
+            
+            <div style="margin-top: 1.5rem; text-align: center;">
+                <a href="/" style="color: var(--primary); text-decoration: none; font-size: 0.875rem;">Return to Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const role = document.getElementById('role').value;
+            const statusMsg = document.getElementById('statusMsg');
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, role })
+                });
+                const data = await response.json();
+                
+                statusMsg.style.display = 'block';
+                if (data.success) {
+                    statusMsg.style.color = 'var(--success)';
+                    statusMsg.textContent = 'Account created successfully!';
+                    document.getElementById('registerForm').reset();
+                } else {
+                    statusMsg.style.color = '#ef4444';
+                    statusMsg.textContent = data.message || 'Error creating account. Username might be taken.';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    </script>
+</body>
+</html>

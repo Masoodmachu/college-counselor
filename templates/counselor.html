@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Counselor Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container fade-in">
+        <header class="dashboard-header">
+            <div>
+                <h1 class="gradient-text">Counselor Portal</h1>
+                <p>Welcome, {{ username }}</p>
+            </div>
+            <a href="/logout" class="btn" style="background: rgba(255,255,255,0.1); color: white; text-decoration: none;">Logout</a>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Student Issues Inbox -->
+            <div class="glass-card">
+                <h3>Student Issues Inbox</h3>
+                <div id="issuesList" style="margin-top: 1rem;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+
+            <!-- Detailed View -->
+            <div class="glass-card" id="detailView" style="display: none;">
+                <h3 id="detailTitle" class="gradient-text"></h3>
+                <p id="detailStudent" style="color: var(--primary); font-weight: 500; margin-bottom: 1rem;"></p>
+                <p id="detailDesc" style="margin-bottom: 2rem; line-height: 1.6;"></p>
+
+                <h4 style="margin-bottom: 1rem;">Private Notes</h4>
+                <div id="notesList" style="margin-bottom: 1.5rem;"></div>
+
+                <form id="noteForm">
+                    <div class="form-group">
+                        <textarea id="noteContent" rows="3" placeholder="Write a note or reply..." required></textarea>
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+                            <input type="checkbox" id="isPrivate" checked style="width: auto;">
+                            <label for="isPrivate" style="margin: 0; cursor: pointer;">Mark as Private Note (uncheck to reply to student)</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save / Send</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentIssueId = null;
+
+        async function loadIssues() {
+            const res = await fetch('/api/issues');
+            const issues = await res.json();
+            const list = document.getElementById('issuesList');
+            list.innerHTML = '';
+
+            issues.forEach(issue => {
+                const item = document.createElement('div');
+                item.className = 'issue-item';
+                item.onclick = () => showDetail(issue);
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between;">
+                        <h4 style="margin-bottom: 0.5rem">${issue.title}</h4>
+                        <span class="issue-badge">${issue.status}</span>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.875rem;">Ticket: ${issue.tracking_code}</p>
+                    <span class="issue-date">${new Date(issue.timestamp).toLocaleString()}</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        async function showDetail(issue) {
+            currentIssueId = issue.id;
+            document.getElementById('detailView').style.display = 'block';
+            document.getElementById('detailTitle').textContent = issue.title;
+            document.getElementById('detailStudent').textContent = `Ticket ID: ${issue.tracking_code}`;
+            
+            let descHtml = `<strong>Main Concern:</strong><br>${issue.description}<br><br>`;
+            if (issue.timeline) descHtml += `<strong>Timeline:</strong><br>${issue.timeline}<br><br>`;
+            if (issue.impact_scale) descHtml += `<strong>Impact Scale (1-10):</strong> ${issue.impact_scale}<br><br>`;
+            if (issue.desired_support) descHtml += `<strong>Desired Support:</strong><br>${issue.desired_support}<br><br>`;
+            
+            document.getElementById('detailDesc').innerHTML = descHtml;
+            
+            fetch(`/api/issues/${issue.id}/seen`, { method: 'POST' })
+                .then(() => loadIssues()); // refresh inbox list to show 'Seen' badge
+                
+            loadNotes(issue.id);
+        }
+
+        async function loadNotes(issueId) {
+            const res = await fetch(`/api/issues/${issueId}/notes`);
+            const notes = await res.json();
+            const list = document.getElementById('notesList');
+            list.innerHTML = '';
+
+            if (notes.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-muted); font-size: 0.875rem;">No notes added yet.</p>';
+                return;
+            }
+
+            let notesHtml = '';
+            notes.forEach(note => {
+                const isPrivate = note.is_private === 1;
+                const style = isPrivate ? 'border-left: 2px solid #f59e0b; background: rgba(245, 158, 11, 0.1);' : 'border-left: 2px solid var(--success); background: rgba(16, 185, 129, 0.1);';
+                const badge = isPrivate ? '<span style="color: #f59e0b; font-size: 0.75rem;">(Private Note)</span>' : '<span style="color: var(--success); font-size: 0.75rem;">(Reply to Student)</span>';
+                const author = `<span style="font-weight: 600; color: white;">${note.counselor_username}</span>`;
+                
+                notesHtml += `
+                    <div style="padding: 0.75rem; margin-bottom: 0.5rem; ${style}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                            <div style="font-size: 0.85rem;">${author} ${badge}</div>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">${new Date(note.timestamp).toLocaleString()}</span>
+                        </div>
+                        <p style="font-size: 0.9rem; margin: 0;">${note.note_content}</p>
+                    </div>
+                `;
+            });
+            list.innerHTML = notesHtml;
+        }
+
+        document.getElementById('noteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentIssueId) return;
+
+            const noteContent = document.getElementById('noteContent').value;
+            const isPrivate = document.getElementById('isPrivate').checked;
+            const res = await fetch(`/api/issues/${currentIssueId}/notes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ note_content: noteContent, is_private: isPrivate })
+            });
+
+            if (res.ok) {
+                document.getElementById('noteContent').value = '';
+                loadNotes(currentIssueId);
+            }
+        });
+
+        loadIssues();
+    </script>
+</body>
+</html>

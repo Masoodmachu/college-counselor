@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anonymous Student Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container fade-in">
+        <header class="dashboard-header">
+            <div>
+                <h1 class="gradient-text">Anonymous Reporting & Support</h1>
+                <p>Speak up safely. No login required.</p>
+            </div>
+            <a href="/counselor-login" class="btn" style="background: rgba(255,255,255,0.1); color: white; text-decoration: none;">Counselor Login</a>
+        </header>
+
+        <div class="dashboard-grid">
+            <!-- Submit new issue -->
+            <div class="glass-card">
+                <h3>Report an Issue / Ask a Question</h3>
+                <div id="successMsg" style="display:none; margin-bottom: 1.5rem; padding: 1rem; border-left: 4px solid var(--success); background: rgba(16, 185, 129, 0.1);">
+                    <h4 style="color: var(--success); margin-bottom: 0.5rem;">Submitted Securely!</h4>
+                    <p>Your tracking code is: <strong id="trackingCodeDisplay" style="font-size: 1.25rem; color: white;"></strong></p>
+                    <p style="font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem;">Please save this code to check for replies from the counselor.</p>
+                </div>
+
+                <form id="issueForm">
+                    <div class="form-group">
+                        <label for="title">Subject</label>
+                        <input type="text" id="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Detailed Description</label>
+                        <textarea id="description" rows="3" required placeholder="What was your main concern or the most stressful part of this situation for you?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="timeline">Timeline of Events</label>
+                        <textarea id="timeline" rows="2" placeholder="What happened leading up to this, and who else might have seen/heard what happened?"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="impact_scale">Impact Scale (1-10)</label>
+                        <input type="number" id="impact_scale" min="1" max="10" placeholder="How much is this affecting your daily life and studies?">
+                    </div>
+                    <div class="form-group">
+                        <label for="desired_support">Desired Support</label>
+                        <textarea id="desired_support" rows="2" placeholder="What kind of support or outcome are you hoping to get by sharing this today?"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit Securely</button>
+                </form>
+            </div>
+
+            <!-- Check Status -->
+            <div class="glass-card">
+                <h3>Check Status</h3>
+                <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1rem;">Enter your tracking code to view counselor replies.</p>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <input type="text" id="checkCode" placeholder="e.g. TKT-ABCDEF">
+                    <button id="btnCheck" class="btn btn-primary">Check</button>
+                </div>
+                
+                <div id="statusResult" style="display: none;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <h4 id="resTitle" style="margin-bottom: 0.5rem"></h4>
+                        <span id="resStatus" class="issue-badge"></span>
+                    </div>
+                    <p id="resDesc" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;"></p>
+                    
+                    <div id="repliesContainer" style="margin-top: 1rem; padding-left: 1rem; border-left: 2px solid var(--success); display: none;">
+                        <h5 style="color: var(--success); margin-bottom: 0.5rem;">Counselor Replies:</h5>
+                        <div id="repliesList"></div>
+                    </div>
+                </div>
+                <div id="notFoundMsg" style="color: #ef4444; display: none;">Tracking code not found.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Submit issue
+        document.getElementById('issueForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
+            const timeline = document.getElementById('timeline').value;
+            const impact_scale = document.getElementById('impact_scale').value;
+            const desired_support = document.getElementById('desired_support').value;
+
+            const res = await fetch('/api/issues', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, description, timeline, impact_scale, desired_support })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('issueForm').style.display = 'none';
+                document.getElementById('successMsg').style.display = 'block';
+                document.getElementById('trackingCodeDisplay').textContent = data.tracking_code;
+            }
+        });
+
+        // Check status
+        document.getElementById('btnCheck').addEventListener('click', async () => {
+            const code = document.getElementById('checkCode').value;
+            if(!code) return;
+            
+            document.getElementById('statusResult').style.display = 'none';
+            document.getElementById('notFoundMsg').style.display = 'none';
+            document.getElementById('repliesContainer').style.display = 'none';
+
+            const res = await fetch(`/api/issues/${code}`);
+            
+            if (res.ok) {
+                const issue = await res.json();
+                document.getElementById('statusResult').style.display = 'block';
+                document.getElementById('resTitle').textContent = issue.title;
+                document.getElementById('resStatus').textContent = issue.status;
+                document.getElementById('resDesc').textContent = issue.description;
+                
+                if (issue.replies && issue.replies.length > 0) {
+                    document.getElementById('repliesContainer').style.display = 'block';
+                    const list = document.getElementById('repliesList');
+                    list.innerHTML = '';
+                    issue.replies.forEach(reply => {
+                        list.innerHTML += `
+                            <div style="margin-bottom: 1rem;">
+                                <span style="font-weight: 600; font-size: 0.85rem; color: white;">Counselor ${reply.counselor_username}</span>
+                                <span class="issue-date" style="font-size: 0.75rem;">${new Date(reply.timestamp).toLocaleString()}</span>
+                                <p style="font-size: 0.85rem; margin-top: 0.25rem;">${reply.note_content}</p>
+                            </div>
+                        `;
+                    });
+                }
+            } else {
+                document.getElementById('notFoundMsg').style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
