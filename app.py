@@ -1,17 +1,21 @@
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-import sqlite3
 import os
+import sqlite3
 
 app = Flask(__name__)
 app.secret_key = 'super_secret_key_for_demo'
 
 import init_db as db_init
-import make_admin
 
 if not os.path.exists('database.db'):
     print("Database not found. Initializing new database...")
     db_init.init_db()
-    make_admin.create_admin()
+    
+    # Create the default admin user
+    conn = sqlite3.connect('database.db')
+    conn.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('admin', 'admin', 'admin')")
+    conn.commit()
+    conn.close()
     print("Database initialized and admin user created.")
 
 def get_db_connection():
